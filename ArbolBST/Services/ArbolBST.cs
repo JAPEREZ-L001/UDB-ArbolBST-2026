@@ -7,6 +7,7 @@ namespace ArbolBST.Services
     /// Arbol binario de busqueda. No usa Stack, Queue ni Dictionary (restriccion del enunciado).
     /// El camino de busqueda y el InOrden se construyen con StringBuilder.
     /// </summary>
+    /// 
     public class ArbolBST
     {
         private NodoBST _raiz;
@@ -14,28 +15,36 @@ namespace ArbolBST.Services
         /// <summary>Raiz actual (solo lectura) para integracion con posiciones y dibujo.</summary>
         public NodoBST Raiz => _raiz;
 
-        public void Insertar(int valor)
+        public bool Insertar(int valor) //Validacion: no insertar duplicados, volverlo a booleano
         {
-            _raiz = InsertarRec(_raiz, valor);
+            bool insertado;
+            _raiz = InsertarRec(_raiz, valor, out insertado);
+            return insertad o;
         }
 
-        private static NodoBST InsertarRec(NodoBST nodo, int valor)
+        private static NodoBST InsertarRec(NodoBST nodo, int valor, out bool insertado)
         {
             if (nodo == null)
             {
+                insertado = true;
                 return new NodoBST(valor);
             }
 
             if (valor < nodo.Dato)
             {
-                nodo.Izquierda = InsertarRec(nodo.Izquierda, valor);
+                nodo.Izquierda = InsertarRec(nodo.Izquierda, valor, out insertado);
             }
             else if (valor > nodo.Dato)
             {
-                nodo.Derecha = InsertarRec(nodo.Derecha, valor);
+                nodo.Derecha = InsertarRec(nodo.Derecha, valor, out insertado);
+            }
+            else
+            {
+                //duplicado
+                insertado = false;
             }
 
-            return nodo;
+                return nodo;
         }
 
         /// <summary>
@@ -77,14 +86,17 @@ namespace ArbolBST.Services
         }
 
         /// <summary>Valores en recorrido InOrden separados por coma y espacio (orden ascendente).</summary>
-        public string ObtenerInOrdenComoTexto()
+        public string ObtenerInOrdenComoTexto() // método para InOrden
         {
+            if(_raiz == null) //Validacion de arbol vacio
+                return "Árbol vacío"
+
             var sb = new StringBuilder();
             InOrdenRec(_raiz, sb);
             return sb.ToString();
         }
 
-        private static void InOrdenRec(NodoBST nodo, StringBuilder sb)
+        private static void InOrdenRec(NodoBST nodo, StringBuilder sb) 
         {
             if (nodo == null)
             {
@@ -107,5 +119,6 @@ namespace ArbolBST.Services
         {
             _raiz = null;
         }
+        //esto es solo para que git funcione xd
     }
 }
