@@ -128,3 +128,4 @@ Rodrigo recorre el árbol para posiciones: si te pregunta por niveles o recorrid
 ## Declaración de uso de IA (en el PR)
 
 [`../templates/declaracion-ia.md`](../templates/declaracion-ia.md)
+
