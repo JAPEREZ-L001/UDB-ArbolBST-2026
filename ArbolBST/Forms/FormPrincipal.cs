@@ -1,172 +1,247 @@
 using ArbolBST.Services;
-using ArbolBST.Models;
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace ArbolBST.Forms
 {
-    //Clase principal del formulario su interfaz gráfica
     public partial class FormPrincipal : Form
     {
-        //Instancia que tiene el árbol BST
+        private readonly ArbolBST.Services.ArbolBST arbol = new ArbolBST.Services.ArbolBST();
 
-        private ArbolBST.Services.ArbolBST arbol = new ArbolBST.Services.ArbolBST();
+        private const int RadioNodo = 22;
+        private const int DiametroNodo = RadioNodo * 2;
+        private const int AnchoReferenciaLayout = 1000;
+        private const float MargenEscala = 32f;
 
+        private static readonly Color ColorNodoDefault = Color.FromArgb(100, 149, 237);
+        private static readonly Color ColorNodoCamino = Color.FromArgb(255, 165, 0);
+        private static readonly Color ColorNodoEncontrado = Color.FromArgb(46, 139, 87);
+        private static readonly Color ColorNodoNoEncontrado = Color.FromArgb(220, 80, 80);
+        private static readonly Color ColorLinea = Color.FromArgb(120, 130, 145);
 
-        //Constructor del formulario
+        private static readonly Color ColorMensajeError = Color.FromArgb(180, 50, 50);
+        private static readonly Color ColorMensajeExito = Color.FromArgb(30, 130, 70);
+        private static readonly Color ColorMensajeNeutral = Color.FromArgb(60, 60, 60);
+
+        private Shortcuts _shortcuts;
+
         public FormPrincipal()
         {
-            //Conexión de eventos distintos los cuales aparecen para que realizen su función pero estan
-            //programados en código para facilidad del desarrollo del proyecto
-
             InitializeComponent();
+
             panelArbol.Paint += panelArbol_Paint;
+            panelArbol.Resize += (s, e) => panelArbol.Invalidate();
+            panelContenedor.Resize += (s, e) => panelArbol.Invalidate();
+
             btnInsertar.Click += btnInsertar_Click;
             btnBuscar.Click += btnBuscar_Click;
             btnInOrden.Click += btnInOrden_Click;
             btnLimpiar.Click += btnLimpiar_Click;
             btnSalir.Click += btnSalir_Click;
 
-
-            panelContenedor.AutoScroll = true;
-
-            //  tamaño grande para permitir scroll
-            panelArbol.Size = new Size(2000, 1000);
-
+            RegistrarAtajos();
         }
 
-        //El panelarbol es donde se dibuja todo en este elemento gráfico
+        private void RegistrarAtajos()
+        {
+            _shortcuts = new Shortcuts(this)
+                .EnDialogo(txtValor, Keys.Enter, () => btnInsertar.PerformClick())
+                .EnControl(txtValor, Keys.F3, () => btnBuscar.PerformClick())
+                .EnControl(txtValor, Keys.F5, () => btnInOrden.PerformClick())
+                .Global(Keys.F2, () => btnInsertar.PerformClick())
+                .Global(Keys.F3, () => btnBuscar.PerformClick())
+                .Global(Keys.F5, () => btnInOrden.PerformClick())
+                .Global(Keys.F9, () => btnLimpiar.PerformClick())
+                .Global(Keys.Escape, () => btnLimpiar.PerformClick());
+
+            _shortcuts.Activar();
+        }
+
+        protected override bool ProcessDialogKey(Keys keyData)
+        {
+            if (_shortcuts != null && _shortcuts.TryProcessDialogKey(keyData, ActiveControl))
+                return true;
+
+            return base.ProcessDialogKey(keyData);
+        }
+
         private void panelArbol_Paint(object sender, PaintEventArgs e)
         {
-            //Aquí están las configuraciones del panel gráfico 
-
             var g = e.Graphics;
-            int ancho = panelArbol.Width;
-            var posiciones = arbol.CalcularPosiciones(panelArbol.Width);
-            if (posiciones == null) return;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            var posiciones = arbol.CalcularPosiciones(AnchoReferenciaLayout);
+            if (posiciones == null || posiciones.Length == 0)
+                return;
+
+            RectangleF bounds = ObtenerBounds(posiciones);
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            float escala = CalcularEscala(bounds, panelArbol.ClientSize);
+            float offsetX = (panelArbol.ClientSize.Width - bounds.Width * escala) / 2f - bounds.Left * escala;
+            float offsetY = (panelArbol.ClientSize.Height - bounds.Height * escala) / 2f - bounds.Top * escala;
+
+            g.TranslateTransform(offsetX, offsetY);
+            g.ScaleTransform(escala, escala);
+
             DibujarLineas(g, posiciones);
             DibujarNodos(g, posiciones);
         }
 
-        //Función específica para recorrer todos los nodos por menos de líneas gráficas
+        private static float CalcularEscala(RectangleF bounds, Size area)
+        {
+            float anchoUtil = Math.Max(1, area.Width - MargenEscala * 2);
+            float altoUtil = Math.Max(1, area.Height - MargenEscala * 2);
+
+            float escalaX = anchoUtil / bounds.Width;
+            float escalaY = altoUtil / bounds.Height;
+            float escala = Math.Min(escalaX, escalaY);
+
+            if (float.IsNaN(escala) || float.IsInfinity(escala) || escala <= 0)
+                return 1f;
+
+            return escala;
+        }
+
+        private RectangleF ObtenerBounds(PosicionNodo[] nodos)
+        {
+            float minX = float.MaxValue;
+            float minY = float.MaxValue;
+            float maxX = float.MinValue;
+            float maxY = float.MinValue;
+
+            foreach (var n in nodos)
+            {
+                minX = Math.Min(minX, n.X);
+                minY = Math.Min(minY, n.Y);
+                maxX = Math.Max(maxX, n.X + DiametroNodo);
+                maxY = Math.Max(maxY, n.Y + DiametroNodo);
+            }
+
+            return new RectangleF(minX, minY, maxX - minX, maxY - minY);
+        }
+
         private void DibujarLineas(Graphics g, PosicionNodo[] nodos)
         {
-            //Recorre todos los nodos 
-
-            foreach (var n in nodos)
-
-            //Si existe  dibuja la línea izquierda, si no la línea derecha
+            using (var pen = new Pen(ColorLinea, 2f))
             {
-                if (n.DatoIzquierda != null)
+                foreach (var n in nodos)
                 {
-                    var hijo = BuscarNodo(nodos, n.DatoIzquierda.Value);
-                    if (hijo != null)
-                        g.DrawLine(Pens.Black, n.X + 20, n.Y + 40, hijo.X + 20, hijo.Y);
-                }
-                //Derecho lado dderecho la misma condición
+                    int cxPadre = n.X + RadioNodo;
+                    int cyPadre = n.Y + DiametroNodo;
 
-                if (n.DatoDerecha != null)
-                {
-                    var hijo = BuscarNodo(nodos, n.DatoDerecha.Value);
-                    if (hijo != null)
-                        g.DrawLine(Pens.Black, n.X + 20, n.Y + 40, hijo.X + 20, hijo.Y);
+                    if (n.DatoIzquierda != null)
+                    {
+                        var hijo = BuscarNodo(nodos, n.DatoIzquierda.Value);
+                        if (hijo != null)
+                            g.DrawLine(pen, cxPadre, cyPadre, hijo.X + RadioNodo, hijo.Y);
+                    }
+
+                    if (n.DatoDerecha != null)
+                    {
+                        var hijo = BuscarNodo(nodos, n.DatoDerecha.Value);
+                        if (hijo != null)
+                            g.DrawLine(pen, cxPadre, cyPadre, hijo.X + RadioNodo, hijo.Y);
+                    }
                 }
             }
         }
 
-        //Recorre todos los nodos del árbol para así dibujarlos 
         private void DibujarNodos(Graphics g, PosicionNodo[] nodos)
         {
-            foreach (var n in nodos)
+            using (var font = new Font("Segoe UI", 9.5f, FontStyle.Bold))
+            using (var penBorde = new Pen(Color.FromArgb(50, 60, 80), 1.5f))
             {
-                //Color por defecto 
-                Brush color = Brushes.LightBlue;
-
-                //Condición si el nodo pertenece al camino recorrido, Naranja si se encontró, rojo si no se encontró
-                if (arbol.CaminoBusqueda != null)
+                foreach (var n in nodos)
                 {
-                    if (Contiene(arbol.CaminoBusqueda, n.Dato))
-                        color = arbol.Encontrado ? Brushes.Orange : Brushes.Red;
+                    Color fill = ObtenerColorNodo(n.Dato);
+                    using (var brush = new SolidBrush(fill))
+                    {
+                        g.FillEllipse(brush, n.X, n.Y, DiametroNodo, DiametroNodo);
+                        g.DrawEllipse(penBorde, n.X, n.Y, DiametroNodo, DiametroNodo);
+                    }
 
-                    if (arbol.Encontrado &&
-                        n.Dato == arbol.CaminoBusqueda[arbol.CaminoBusqueda.Length - 1])
-                        color = Brushes.Green;
+                    string texto = n.Dato.ToString();
+                    var tam = g.MeasureString(texto, font);
+                    float tx = n.X + (DiametroNodo - tam.Width) / 2f;
+                    float ty = n.Y + (DiametroNodo - tam.Height) / 2f;
+                    g.DrawString(texto, font, Brushes.White, tx, ty);
                 }
-
-                //Estos métodos dibujan el circulo y tamaño del nodo
-                g.FillEllipse(color, n.X, n.Y, 40, 40);
-                g.DrawEllipse(Pens.Black, n.X, n.Y, 40, 40);
-
-                g.DrawString(n.Dato.ToString(),
-                    this.Font, Brushes.Black,
-                    n.X + 10, n.Y + 10);
             }
         }
 
-        //Busca el nodo por valor
-        private PosicionNodo BuscarNodo(PosicionNodo[] nodos, int dato)
+        private Color ObtenerColorNodo(int dato)
+        {
+            if (arbol.CaminoBusqueda == null || arbol.CaminoBusqueda.Length == 0)
+                return ColorNodoDefault;
+
+            if (arbol.Encontrado &&
+                arbol.CaminoBusqueda[arbol.CaminoBusqueda.Length - 1] == dato)
+                return ColorNodoEncontrado;
+
+            if (Contiene(arbol.CaminoBusqueda, dato))
+                return arbol.Encontrado ? ColorNodoCamino : ColorNodoNoEncontrado;
+
+            return ColorNodoDefault;
+        }
+
+        private static PosicionNodo BuscarNodo(PosicionNodo[] nodos, int dato)
         {
             foreach (var n in nodos)
                 if (n.Dato == dato)
                     return n;
-
             return null;
         }
-        //Verificar si el valor está en el arreglo
 
-        private bool Contiene(int[] arr, int val)
+        private static bool Contiene(int[] arr, int val)
         {
+            if (arr == null) return false;
             foreach (var v in arr)
                 if (v == val)
                     return true;
-
             return false;
         }
 
-        //Aquí se inserta el número que se desea para construir el árbol
-
         private void btnInsertar_Click(object sender, EventArgs e)
         {
-            //Validaciones para solo insertar números
-            try
-            {
-                int valor = int.Parse(txtValor.Text);
-                arbol.Insertar(valor);
-                arbol.CaminoBusqueda = null;
+            if (!TryReadValor(out int valor))
+                return;
 
-                panelArbol.Invalidate();
-                txtValor.Clear();
-            }
-            catch
+            if (!arbol.Insertar(valor))
             {
-                MessageBox.Show("Ingrese un número válido");
+                MostrarMensaje("Duplicado: " + valor + " ya existe en el Ã¡rbol.", ColorMensajeError);
+                return;
             }
+
+            arbol.CaminoBusqueda = null;
+            panelArbol.Invalidate();
+            txtResultado.Text = arbol.ObtenerInOrdenComoTexto();
+            MostrarMensaje("Insertado: " + valor, ColorMensajeExito);
+            txtValor.Clear();
+            txtValor.Focus();
         }
 
-        //Indica si el camino está encontrado para realizar el recorrido hasta el número a dar 
         private void btnBuscar_Click(object sender, EventArgs e)
         {
-            try
-            {
-                int valor = int.Parse(txtValor.Text);
+            if (!TryReadValor(out int valor))
+                return;
 
-                bool encontrado = arbol.Buscar(valor, out string camino);
+            bool encontrado = arbol.Buscar(valor, out string camino);
+            string etiqueta = encontrado ? "Encontrado" : "No encontrado";
+            MostrarMensaje(etiqueta + ". Camino: " + camino,
+                encontrado ? ColorMensajeExito : ColorMensajeError);
 
-                MessageBox.Show((encontrado ? "Encontrado" : "No encontrado") + "\nCamino: " + camino);
-
-                panelArbol.Invalidate();
-            }
-            catch
-            {
-                MessageBox.Show("Ingrese un número válido");
-            }
+            panelArbol.Invalidate();
         }
 
-        //Muestra los valores ordenados 
         private void btnInOrden_Click(object sender, EventArgs e)
         {
             txtResultado.Text = arbol.ObtenerInOrdenComoTexto();
+            MostrarMensaje("Recorrido InOrden actualizado.", ColorMensajeNeutral);
         }
 
         private void btnLimpiar_Click(object sender, EventArgs e)
@@ -174,19 +249,40 @@ namespace ArbolBST.Forms
             arbol.Limpiar();
             panelArbol.Invalidate();
             txtResultado.Clear();
+            txtValor.Clear();
+            MostrarMensaje("Ãrbol vaciado.", ColorMensajeNeutral);
+            txtValor.Focus();
         }
+
         private void btnSalir_Click(object sender, EventArgs e)
         {
             Application.Exit();
         }
-        //Boton para poder salir del programa
-        //FIN DEL PROYECTO AQUI
 
-        private void FormPrincipal_Load(object sender, System.EventArgs e)
+        private bool TryReadValor(out int valor)
         {
+            if (string.IsNullOrWhiteSpace(txtValor.Text))
+            {
+                MostrarMensaje("Ingrese un valor numÃ©rico.", ColorMensajeError);
+                valor = 0;
+                txtValor.Focus();
+                return false;
+            }
 
+            if (!int.TryParse(txtValor.Text.Trim(), out valor))
+            {
+                MostrarMensaje("Ingrese un nÃºmero entero vÃ¡lido.", ColorMensajeError);
+                txtValor.Focus();
+                return false;
+            }
+
+            return true;
         }
 
-      
+        private void MostrarMensaje(string texto, Color color)
+        {
+            lblMensaje.ForeColor = color;
+            lblMensaje.Text = texto;
+        }
     }
 }
