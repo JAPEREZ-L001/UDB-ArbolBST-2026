@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using ArbolBST.Models;
 
@@ -63,7 +64,9 @@ namespace ArbolBST.Services
         public bool Buscar(int valor, out string caminoVisitados)
         {
             var sb = new StringBuilder();
-            var lista = new int[100];
+            // El camino tiene a lo sumo la altura del arbol; con N nodos nunca excede N.
+            int capacidad = Math.Max(1, ContarNodos(_raiz));
+            var lista = new int[capacidad];
             int index = 0;
 
             bool ok = BuscarRec(_raiz, valor, sb, lista, ref index);
@@ -75,6 +78,13 @@ namespace ArbolBST.Services
             Encontrado = ok;
             caminoVisitados = sb.ToString();
             return ok;
+        }
+
+        private static int ContarNodos(NodoBST nodo)
+        {
+            if (nodo == null)
+                return 0;
+            return 1 + ContarNodos(nodo.Izquierda) + ContarNodos(nodo.Derecha);
         }
 
         private static bool BuscarRec(NodoBST nodo, int valor, StringBuilder sb, int[] lista, ref int index)
@@ -131,17 +141,17 @@ namespace ArbolBST.Services
 
         public PosicionNodo[] CalcularPosiciones(int anchoPanel)
         {
-            var lista = new PosicionNodo[100];
+            int total = ContarNodos(_raiz);
+            if (total == 0)
+                return new PosicionNodo[0];
+
+            var lista = new PosicionNodo[total];
             int index = 0;
             int centro = anchoPanel / 2;
 
             CalcularRec(_raiz, centro, 30, centro / 2, lista, ref index);
 
-            var resultado = new PosicionNodo[index];
-            for (int i = 0; i < index; i++)
-                resultado[i] = lista[i];
-
-            return resultado;
+            return lista;
         }
 
         private void CalcularRec(NodoBST nodo, int x, int y, int offset, PosicionNodo[] lista, ref int index)
